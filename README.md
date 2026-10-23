@@ -1,7 +1,7 @@
 # Hubdex: Job Application Tracker
 
 <p align="center">
-  <img src="public/logo.svg" alt="Hubdex logo" width="72" />
+  <img src="logo.svg.png" alt="Hubdex logo" width="72" />
 </p>
 
 **Hubdex** is a focused, open-source job application tracker: one hub for every role, stage, and decision in your job search. Log every application, move it through a five-stage pipeline (Wishlist, Applied, Interview, Offer, Rejected), and see exactly where your search stands, without a spreadsheet in sight.
