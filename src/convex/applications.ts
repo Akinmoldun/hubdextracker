@@ -1,7 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { STAGES, stageValidator, priorityValidator } from "./schema";
+import { STAGES, stageValidator, priorityValidator, type Stage, type Priority } from "./schema";
 
 const LIMITS: Record<string, number> = {
   company: 120,
@@ -12,7 +12,7 @@ const LIMITS: Record<string, number> = {
   notes: 2000,
 };
 
-async function requireUser(ctx: any) {
+async function requireUser(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
   if (!userId) {
     throw new Error("Not authenticated");
@@ -113,11 +113,17 @@ export const create = mutation({
     const userId = await requireUser(ctx);
     const clean = validateFields({ ...args });
     return await ctx.db.insert("applications", {
-      ...clean,
       company: (clean.company as string).trim(),
       role: (clean.role as string).trim(),
+      location: clean.location,
+      salary: clean.salary,
+      url: clean.url,
+      stage: args.stage as Stage,
+      priority: args.priority as Priority,
+      appliedDate: clean.appliedDate,
+      notes: clean.notes,
       userId,
-    } as any);
+    });
   },
 });
 
@@ -140,13 +146,20 @@ export const update = mutation({
     if (!existing || existing.userId !== userId) {
       throw new Error("Application not found.");
     }
-    const { id, ...fields } = args;
+    const { id: _id, ...fields } = args;
+    void _id;
     const clean = validateFields({ ...fields });
     await ctx.db.patch(args.id, {
-      ...clean,
       company: (clean.company as string).trim(),
       role: (clean.role as string).trim(),
-    } as any);
+      location: clean.location,
+      salary: clean.salary,
+      url: clean.url,
+      stage: args.stage as Stage,
+      priority: args.priority as Priority,
+      appliedDate: clean.appliedDate,
+      notes: clean.notes,
+    });
   },
 });
 

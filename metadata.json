@@ -1,0 +1,5 @@
+{
+  "name": "Hubdex: Job Application Tracker",
+  "description": "Job application tracker to log roles, move stages through a five-step pipeline, and monitor search metrics in one workspace.",
+  "requestFramePermissions": []
+}

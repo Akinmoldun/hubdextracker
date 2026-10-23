@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/use-auth";
-import { useConvex } from "convex/react";
+import { useConvex } from "@/lib/convex-client";
 import { api } from "@/convex/_generated/api";
 import { HubdexWordmark } from "@/components/hubdex";
 import { Input } from "@/components/ui/input";
