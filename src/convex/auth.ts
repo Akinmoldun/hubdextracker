@@ -23,7 +23,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         const email = String(params.email ?? "")
           .trim()
           .toLowerCase();
-        const raw = (params.name as string | undefined)?.trim();
+        const raw =
+          typeof params.name === "string" ? params.name.trim() : "";
         const name = raw ? raw.slice(0, 100) : undefined;
         return {
           email,

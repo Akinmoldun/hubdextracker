@@ -1,16 +1,41 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { STAGES, stageValidator, priorityValidator, type Stage, type Priority } from "./schema";
+import { STAGES, stageValidator, priorityValidator, type Stage } from "./schema";
 
-const LIMITS: Record<string, number> = {
-  company: 120,
-  role: 120,
-  location: 200,
-  salary: 100,
-  url: 500,
-  notes: 2000,
-};
+interface ApplicationFieldsInput {
+  company: string;
+  role: string;
+  location?: string;
+  salary?: string;
+  url?: string;
+  appliedDate?: string;
+  notes?: string;
+}
+
+interface ValidatedApplicationFields {
+  company: string;
+  role: string;
+  location?: string;
+  salary?: string;
+  url?: string;
+  appliedDate?: string;
+  notes?: string;
+}
+
+function cleanOptionalText(
+  value: string | undefined,
+  fieldLabel: string,
+  limit: number,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.length > limit) {
+    throw new Error(`"${fieldLabel}" is limited to ${limit} characters.`);
+  }
+  return trimmed;
+}
 
 async function requireUser(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
@@ -21,33 +46,56 @@ async function requireUser(ctx: QueryCtx | MutationCtx) {
 }
 
 function validateFields(
-  fields: Record<string, string | undefined>,
-): Record<string, string | undefined> {
-  for (const [key, limit] of Object.entries(LIMITS)) {
-    const value = fields[key];
-    if (value !== undefined && value !== null) {
-      if (value.trim().length === 0) {
-        fields[key] = undefined;
-        continue;
-      }
-      if (value.length > limit) {
-        throw new Error(`"${key}" is limited to ${limit} characters.`);
-      }
-    }
-  }
-  if (!fields.company || fields.company.trim().length === 0) {
+  fields: ApplicationFieldsInput,
+): ValidatedApplicationFields {
+  const company = fields.company.trim();
+  if (company.length === 0) {
     throw new Error("Company is required.");
   }
-  if (!fields.role || fields.role.trim().length === 0) {
+  if (company.length > 120) {
+    throw new Error('"company" is limited to 120 characters.');
+  }
+
+  const role = fields.role.trim();
+  if (role.length === 0) {
     throw new Error("Role is required.");
   }
-  if (fields.url && !/^https?:\/\/\S+$/.test(fields.url.trim())) {
+  if (role.length > 120) {
+    throw new Error('"role" is limited to 120 characters.');
+  }
+
+  const location = cleanOptionalText(fields.location, "location", 200);
+  const salary = cleanOptionalText(fields.salary, "salary", 100);
+  const url = cleanOptionalText(fields.url, "url", 500);
+  const notes = cleanOptionalText(fields.notes, "notes", 2000);
+  const appliedDate = cleanOptionalText(fields.appliedDate, "appliedDate", 20);
+
+  if (url && !/^https?:\/\/\S+$/.test(url)) {
     throw new Error("Job URL must start with http:// or https://");
   }
-  if (fields.appliedDate && !/^\d{4}-\d{2}-\d{2}$/.test(fields.appliedDate)) {
+  if (appliedDate && !/^\d{4}-\d{2}-\d{2}$/.test(appliedDate)) {
     throw new Error("Invalid applied date.");
   }
-  return fields;
+
+  return {
+    company,
+    role,
+    location,
+    salary,
+    url,
+    appliedDate,
+    notes,
+  };
+}
+
+function createEmptyStageCounts(): Record<Stage, number> {
+  return {
+    Wishlist: 0,
+    Applied: 0,
+    Interview: 0,
+    Offer: 0,
+    Rejected: 0,
+  };
 }
 
 export const list = query({
@@ -65,6 +113,7 @@ export const list = query({
 export const stats = query({
   args: {},
   handler: async (ctx) => {
+    const byStage = createEmptyStageCounts();
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       return {
@@ -72,26 +121,23 @@ export const stats = query({
         active: 0,
         interviews: 0,
         offers: 0,
-        byStage: Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<
-          string,
-          number
-        >,
+        byStage,
       };
     }
     const apps = await ctx.db
       .query("applications")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    const byStage = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<
-      string,
-      number
-    >;
-    for (const a of apps) byStage[a.stage] = (byStage[a.stage] ?? 0) + 1;
+    for (const a of apps) {
+      if (STAGES.includes(a.stage)) {
+        byStage[a.stage] += 1;
+      }
+    }
     return {
       total: apps.length,
-      active: byStage["Applied"] + byStage["Interview"],
-      interviews: byStage["Interview"],
-      offers: byStage["Offer"],
+      active: byStage.Applied + byStage.Interview,
+      interviews: byStage.Interview,
+      offers: byStage.Offer,
       byStage,
     };
   },
@@ -111,15 +157,15 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    const clean = validateFields({ ...args });
+    const clean = validateFields(args);
     return await ctx.db.insert("applications", {
-      company: (clean.company as string).trim(),
-      role: (clean.role as string).trim(),
+      company: clean.company,
+      role: clean.role,
       location: clean.location,
       salary: clean.salary,
       url: clean.url,
-      stage: args.stage as Stage,
-      priority: args.priority as Priority,
+      stage: args.stage,
+      priority: args.priority,
       appliedDate: clean.appliedDate,
       notes: clean.notes,
       userId,
@@ -146,17 +192,15 @@ export const update = mutation({
     if (!existing || existing.userId !== userId) {
       throw new Error("Application not found.");
     }
-    const { id: _id, ...fields } = args;
-    void _id;
-    const clean = validateFields({ ...fields });
+    const clean = validateFields(args);
     await ctx.db.patch(args.id, {
-      company: (clean.company as string).trim(),
-      role: (clean.role as string).trim(),
+      company: clean.company,
+      role: clean.role,
       location: clean.location,
       salary: clean.salary,
       url: clean.url,
-      stage: args.stage as Stage,
-      priority: args.priority as Priority,
+      stage: args.stage,
+      priority: args.priority,
       appliedDate: clean.appliedDate,
       notes: clean.notes,
     });

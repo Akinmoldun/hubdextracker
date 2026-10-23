@@ -1,16 +1,16 @@
 {
-  "name": "freebuff.com application",
-  "short_name": "freebuff.com",
-  "description": "freebuff.com application",
+  "name": "Hubdex: Job Application Tracker",
+  "short_name": "Hubdex",
+  "description": "Job application tracker to log roles, move stages through a five-step pipeline, and monitor search metrics in one workspace.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#0f62fe",
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/logo.svg",
       "sizes": "any",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]

@@ -1,10 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/vercel-build.mjs",
+  "framework": "vite",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|\\.well-known/|assets/).*)",
       "destination": "/index.html"
     }
   ]

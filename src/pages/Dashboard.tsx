@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
-import { useQuery, useMutation } from "@/lib/convex-client";
+import { Link, useNavigate } from "react-router";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { STAGES, type Stage, type Priority } from "@/convex/schema";
@@ -125,7 +125,8 @@ export default function Dashboard() {
           a.company.toLowerCase().includes(q) ||
           a.role.toLowerCase().includes(q) ||
           (a.location ?? "").toLowerCase().includes(q) ||
-          (a.salary ?? "").toLowerCase().includes(q)
+          (a.salary ?? "").toLowerCase().includes(q) ||
+          (a.notes ?? "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => b._creationTime - a._creationTime);
@@ -204,8 +205,12 @@ export default function Dashboard() {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate("/auth");
+    try {
+      await signOut();
+      navigate("/auth");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sign out");
+    }
   };
 
   const isLoading = applications === undefined;
@@ -215,10 +220,14 @@ export default function Dashboard() {
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-border bg-background">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
-          <HubdexWordmark />
+          <Link to="/" aria-label="Hubdex home">
+            <HubdexWordmark />
+          </Link>
           <div className="flex items-center gap-3">
             <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
-              {user?.name || user?.email || ""}
+              {user?.name ||
+                user?.email ||
+                (user?.isAnonymous ? "Guest workspace" : "")}
             </span>
             <Button
               variant="outline"

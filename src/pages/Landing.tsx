@@ -149,10 +149,16 @@ export default function Landing() {
               className="mt-8 flex flex-wrap items-center gap-3"
             >
               <Link
-                to="/auth?returnTo=%2Fdashboard"
+                to={
+                  !isLoading && isAuthenticated
+                    ? "/dashboard"
+                    : "/auth?returnTo=%2Fdashboard"
+                }
                 className="inline-flex h-12 items-center gap-2 bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Start tracking, it's free
+                {!isLoading && isAuthenticated
+                  ? "Open your hub"
+                  : "Start tracking, it's free"}
                 <ArrowRight className="size-4" />
               </Link>
               <a
@@ -397,10 +403,14 @@ export default function Landing() {
             </h2>
           </div>
           <Link
-            to="/auth?returnTo=%2Fdashboard"
+            to={
+              !isLoading && isAuthenticated
+                ? "/dashboard"
+                : "/auth?returnTo=%2Fdashboard"
+            }
             className="inline-flex h-12 shrink-0 items-center gap-2 bg-white px-7 text-base font-semibold text-[#0f62fe] transition-colors hover:bg-[#d0e2ff]"
           >
-            Create your hub
+            {!isLoading && isAuthenticated ? "Open your hub" : "Create your hub"}
             <ArrowRight className="size-4" />
           </Link>
         </div>
@@ -417,37 +427,65 @@ export default function Landing() {
                 every role, stage, and decision in your search.
               </p>
             </div>
-            <div className="md:col-span-7 grid grid-cols-2 gap-8 sm:grid-cols-3">
-              {[
-                {
-                  h: "Product",
-                  links: ["Pipeline", "Features", "How it works"],
-                },
-                {
-                  h: "Account",
-                  links: ["Sign in", "Get started", "Your dashboard"],
-                },
-                {
-                  h: "Resources",
-                  links: ["Search strategy", "Interview prep", "Changelog"],
-                },
-              ].map((col) => (
-                <div key={col.h}>
-                  <p className="ibm-eyebrow text-[#8d8d8d]">{col.h}</p>
-                  <ul className="mt-4 space-y-2.5 text-sm">
-                    {col.links.map((l) => (
-                      <li key={l}>
-                        <Link
-                          to={l === "Sign in" || l === "Get started" || l === "Your dashboard" ? "/auth" : "#"}
-                          className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
-                        >
-                          {l}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+            <div className="md:col-span-7 grid grid-cols-2 gap-8 sm:grid-cols-2">
+              <div>
+                <p className="ibm-eyebrow text-[#8d8d8d]">Product</p>
+                <ul className="mt-4 space-y-2.5 text-sm">
+                  <li>
+                    <a
+                      href="#pipeline"
+                      className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
+                    >
+                      Pipeline
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="#features"
+                      className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
+                    >
+                      Features
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="#how"
+                      className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
+                    >
+                      How it works
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <p className="ibm-eyebrow text-[#8d8d8d]">Account</p>
+                <ul className="mt-4 space-y-2.5 text-sm">
+                  <li>
+                    <Link
+                      to="/auth"
+                      className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
+                    >
+                      Sign in
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/auth?returnTo=%2Fdashboard"
+                      className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
+                    >
+                      Get started
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/dashboard"
+                      className="text-[#c6c6c6] underline-offset-4 hover:text-white hover:underline"
+                    >
+                      Your dashboard
+                    </Link>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
           <div className="mt-12 flex flex-col gap-3 border-t border-[#393939] pt-6 sm:flex-row sm:items-center sm:justify-between">

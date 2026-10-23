@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
-import { useAuthActions, useConvexAuth, useQuery } from "@/lib/convex-client";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth, useQuery } from "convex/react";
 
 export function useAuth() {
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();

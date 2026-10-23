@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/use-auth";
-import { useConvex } from "@/lib/convex-client";
+import { useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { HubdexWordmark } from "@/components/hubdex";
 import { Input } from "@/components/ui/input";
@@ -206,7 +206,15 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
     setLoadingAction("password");
     try {
-      await signIn("password", { flow: "signIn", email, password });
+      const result = await signIn("password", {
+        flow: "signIn",
+        email,
+        password,
+      });
+      if (!result.signingIn) {
+        setError("Invalid email or password.");
+        return;
+      }
       navigate(redirect);
     } catch (err) {
       console.error("Sign-in error:", err);
@@ -221,18 +229,20 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     setNotice(null);
     setLoadingAction("google");
     try {
-      await signIn("google", { redirectTo: redirect });
-      navigate(redirect);
+      const result = await signIn("google", { redirectTo: redirect });
+      if (result.signingIn) {
+        navigate(redirect);
+        setLoadingAction(null);
+      } else if (!result.redirect) {
+        setLoadingAction(null);
+      }
     } catch (err) {
       console.error("Google sign-in error:", err);
       const message =
-        err instanceof Error
+        err instanceof Error && err.message
           ? err.message
           : "Google sign-in failed. Please try again.";
-      if (message !== "Google sign-in was canceled.") {
-        setError(message);
-      }
-    } finally {
+      setError(message);
       setLoadingAction(null);
     }
   };
