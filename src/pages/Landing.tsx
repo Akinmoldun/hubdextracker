@@ -168,7 +168,7 @@ export default function Landing() {
               transition={{ duration: 0.5, delay: 0.35 }}
               className="ibm-eyebrow mt-8 text-muted-foreground"
             >
-              No credit card · Email or guest sign-in · Your data, your account
+              No credit card · Google, email, or guest sign-in · Your data, your account
             </motion.p>
           </div>
 
@@ -357,7 +357,7 @@ export default function Landing() {
               {
                 step: "Step 01",
                 title: "Create your hub",
-                body: "Sign in with email or as a guest. Your workspace is ready instantly.",
+                body: "Sign in with Google, email, or as a guest. Your workspace is ready instantly.",
               },
               {
                 step: "Step 02",

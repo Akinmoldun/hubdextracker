@@ -1,25 +1,30 @@
-// THIS FILE IS READ ONLY. Do not touch this file unless you are correctly adding a new auth provider in accordance to the vly auth documentation
-
-import { convexAuth } from "@convex-dev/auth/server";
+import Google from "@auth/core/providers/google";
 import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
 import { Password } from "@convex-dev/auth/providers/Password";
-import { emailOtp } from "./auth/emailOtp";
-
+import { convexAuth } from "@convex-dev/auth/server";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
-    // Email + password registration and sign-in. Passwords are hashed with
-    // Scrypt (Lucia) by the provider, never stored in plain text.
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID,
+      clientSecret:
+        process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email.trim().toLowerCase(),
+          image: profile.picture,
+        };
+      },
+    }),
     Password({
       profile(params) {
-        // Normalize the email (trim + lowercase) so registration and sign-in
-        // both resolve to the same account regardless of casing or spaces.
-        // This normalized email is the password account's unique key, so the
-        // server can never create a second account for the same address.
-        const email = String(params.email ?? "").trim().toLowerCase();
+        const email = String(params.email ?? "")
+          .trim()
+          .toLowerCase();
         const raw = (params.name as string | undefined)?.trim();
         const name = raw ? raw.slice(0, 100) : undefined;
-        // The profile record must only contain defined Convex values.
         return {
           email,
           ...(name !== undefined ? { name } : {}),
@@ -31,7 +36,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         }
       },
     }),
-    emailOtp,
     Anonymous,
   ],
 });

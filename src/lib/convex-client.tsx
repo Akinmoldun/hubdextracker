@@ -1,5 +1,6 @@
-// MOCKED — in-memory data & auth layer when VITE_CONVEX_URL is not configured
-// (data resets on container sleep; delegates to ConvexReactClient if VITE_CONVEX_URL is set)
+// Unified Convex client & standalone runtime layer
+// Uses ConvexReactClient when VITE_CONVEX_URL is configured; otherwise runs
+// an in-memory/session store with Express-backed popup Google OAuth 2.0.
 
 import React, { useMemo, useSyncExternalStore } from "react";
 import {
@@ -59,6 +60,7 @@ interface StoredAccount {
   userId: Id<"users">;
   email: string;
   password?: string;
+  googleSub?: string;
   name?: string;
 }
 
@@ -336,6 +338,125 @@ async function executeMockMutation(
   }
 }
 
+interface GooglePopupProfile {
+  sub: string;
+  email: string;
+  name?: string;
+  picture?: string;
+}
+
+async function runPopupGoogleSignIn(): Promise<{ signingIn: boolean }> {
+  const origin = window.location.origin;
+  const response = await fetch(
+    `/api/auth/google/url?origin=${encodeURIComponent(origin)}`,
+  );
+  const data = (await response.json()) as {
+    configured?: boolean;
+    url?: string;
+    error?: string;
+  };
+
+  if (!response.ok || !data.url) {
+    throw new Error(
+      data.error ||
+        "Google Sign-In is not configured yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your environment settings.",
+    );
+  }
+
+  const popup = window.open(
+    data.url,
+    "hubdex_google_oauth",
+    "width=520,height=640,menubar=no,toolbar=no,status=no",
+  );
+
+  if (!popup) {
+    throw new Error(
+      "Popup blocked by your browser. Please allow popups for this site and try again.",
+    );
+  }
+
+  const profile = await new Promise<GooglePopupProfile>((resolve, reject) => {
+    let settled = false;
+
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      window.clearInterval(closeTimer);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      const evOrigin = event.origin || "";
+      if (
+        evOrigin &&
+        evOrigin !== window.location.origin &&
+        !evOrigin.endsWith(".run.app") &&
+        !evOrigin.includes("localhost")
+      ) {
+        return;
+      }
+
+      const payload = event.data as {
+        type?: string;
+        profile?: GooglePopupProfile;
+        error?: string;
+      } | null;
+
+      if (!payload || typeof payload !== "object") return;
+
+      if (payload.type === "OAUTH_AUTH_SUCCESS" && payload.profile?.email) {
+        settled = true;
+        cleanup();
+        resolve(payload.profile);
+      } else if (payload.type === "OAUTH_AUTH_ERROR") {
+        settled = true;
+        cleanup();
+        reject(new Error(payload.error || "Google sign-in failed."));
+      }
+    };
+
+    const closeTimer = window.setInterval(() => {
+      if (popup.closed && !settled) {
+        settled = true;
+        cleanup();
+        reject(new Error("Google sign-in was canceled."));
+      }
+    }, 500);
+
+    window.addEventListener("message", handleMessage);
+  });
+
+  const email = profile.email.trim().toLowerCase();
+  const existing = mockState.accountsByEmail.get(email);
+  const userId = existing?.userId ?? makeId("users");
+  const existingUserDoc = mockState.users.get(userId);
+  const cleanName = profile.name?.trim().slice(0, 100);
+
+  const userDoc: Doc<"users"> = {
+    _id: userId,
+    _creationTime: existingUserDoc?._creationTime ?? Date.now(),
+    email,
+    ...(cleanName || existingUserDoc?.name
+      ? { name: cleanName || existingUserDoc?.name }
+      : {}),
+    ...(profile.picture || existingUserDoc?.image
+      ? { image: profile.picture || existingUserDoc?.image }
+      : {}),
+    isAnonymous: false,
+  };
+
+  mockState.users.set(userId, userDoc);
+  mockState.accountsByEmail.set(email, {
+    ...existing,
+    userId,
+    email,
+    googleSub: profile.sub,
+    name: cleanName || existing?.name,
+  });
+  mockState.currentUserId = userId;
+  notifyChange();
+
+  return { signingIn: true };
+}
+
 type SignInParams =
   | FormData
   | (Record<string, Value> & { redirectTo?: string; code?: string });
@@ -351,6 +472,10 @@ async function mockSignIn(
     }
     return String(params[key] ?? "");
   };
+
+  if (provider === "google") {
+    return runPopupGoogleSignIn();
+  }
 
   if (provider === "anonymous") {
     const userId = makeId("users");
@@ -390,10 +515,11 @@ async function mockSignIn(
       };
       mockState.users.set(userId, userDoc);
       mockState.accountsByEmail.set(email, {
+        ...existing,
         userId,
         email,
         password,
-        name: rawName || undefined,
+        name: rawName || existing?.name,
       });
       mockState.currentUserId = userId;
       notifyChange();
@@ -401,35 +527,8 @@ async function mockSignIn(
     }
 
     const acct = mockState.accountsByEmail.get(email);
-    if (!acct || acct.password !== password) {
+    if (!acct || acct.password === undefined || acct.password !== password) {
       throw new Error("Invalid credentials");
-    }
-    mockState.currentUserId = acct.userId;
-    notifyChange();
-    return { signingIn: true };
-  }
-
-  if (provider === "email-otp") {
-    const email = getParam("email").trim().toLowerCase();
-    const code = getParam("code").trim();
-    if (!code) {
-      return { signingIn: false };
-    }
-    if (!/^\d{6}$/.test(code)) {
-      throw new Error("Invalid verification code");
-    }
-    let acct = mockState.accountsByEmail.get(email);
-    if (!acct) {
-      const userId = makeId("users");
-      const userDoc: Doc<"users"> = {
-        _id: userId,
-        _creationTime: Date.now(),
-        email,
-        isAnonymous: false,
-      };
-      mockState.users.set(userId, userDoc);
-      acct = { userId, email };
-      mockState.accountsByEmail.set(email, acct);
     }
     mockState.currentUserId = acct.userId;
     notifyChange();
