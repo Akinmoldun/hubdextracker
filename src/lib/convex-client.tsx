@@ -1,6 +1,6 @@
 // Unified Convex client & standalone runtime layer
-// Uses ConvexReactClient when VITE_CONVEX_URL is configured; otherwise runs
-// an in-memory/session store with Express-backed popup Google OAuth 2.0.
+// Uses ConvexReactClient natively when VITE_CONVEX_URL is set (e.g. Vercel + Convex Production);
+// otherwise falls back to an in-memory/session store for standalone preview.
 
 import React, { useMemo, useSyncExternalStore } from "react";
 import {
@@ -15,7 +15,7 @@ import {
   ConvexAuthProvider as RealConvexAuthProvider,
   useAuthActions as useRealAuthActions,
 } from "@convex-dev/auth/react";
-import { anyApi } from "convex/server";
+import { getFunctionName } from "convex/server";
 import type {
   FunctionArgs,
   FunctionReference,
@@ -34,27 +34,20 @@ const realConvexClient = IS_MOCK_CONVEX
   ? null
   : new ConvexReactClient(RAW_CONVEX_URL);
 
-function getRefName(ref: unknown): string {
-  if (ref && typeof ref === "object" && "_name" in ref) {
-    return String((ref as { _name: unknown })._name);
+function getRefName(
+  ref: FunctionReference<"query" | "mutation" | "action">,
+): string {
+  try {
+    return getFunctionName(ref);
+  } catch {
+    if (ref && typeof ref === "object" && "_name" in ref) {
+      return String((ref as { _name: unknown })._name);
+    }
+    return "";
   }
-  return "";
 }
 
-function resolveRealFunctionRef(
-  ref: unknown,
-): FunctionReference<"query" | "mutation" | "action"> {
-  const name = getRefName(ref);
-  if (!name) return ref as FunctionReference<"query" | "mutation" | "action">;
-  const [mod, fn] = name.split(":");
-  const apiRecord = anyApi as unknown as Record<
-    string,
-    Record<string, FunctionReference<"query" | "mutation" | "action">>
-  >;
-  return apiRecord[mod][fn];
-}
-
-// ---------- In-memory store (with safe sessionStorage backup for tab navigation) ----------
+// ---------- In-memory store (used only when VITE_CONVEX_URL is unset) ----------
 
 interface StoredAccount {
   userId: Id<"users">;
@@ -598,15 +591,7 @@ function useMockQuery<Query extends FunctionReference<"query">>(
   }, [query, firstArg, version]);
 }
 
-function useLiveQuery<Query extends FunctionReference<"query">>(
-  query: Query,
-  ...args: OptionalRestArgsOrSkip<Query>
-): FunctionReturnType<Query> | undefined {
-  const realRef = resolveRealFunctionRef(query) as Query;
-  return useRealQuery(realRef, ...args);
-}
-
-export const useQuery = IS_MOCK_CONVEX ? useMockQuery : useLiveQuery;
+export const useQuery = IS_MOCK_CONVEX ? useMockQuery : useRealQuery;
 
 function useMockMutation<Mutation extends FunctionReference<"mutation">>(
   mutation: Mutation,
@@ -624,8 +609,7 @@ function useMockMutation<Mutation extends FunctionReference<"mutation">>(
 function useLiveMutation<Mutation extends FunctionReference<"mutation">>(
   mutation: Mutation,
 ): (args: FunctionArgs<Mutation>) => Promise<FunctionReturnType<Mutation>> {
-  const realRef = resolveRealFunctionRef(mutation) as Mutation;
-  const mutate = useRealMutation(realRef);
+  const mutate = useRealMutation(mutation);
   return (args: FunctionArgs<Mutation>) =>
     mutate(
       ...([args] as unknown as OptionalRestArgs<Mutation>),
@@ -649,19 +633,4 @@ function useMockConvexClient() {
   };
 }
 
-function useLiveConvexClient() {
-  const client = useRealConvex();
-  return {
-    query: <Query extends FunctionReference<"query">>(
-      query: Query,
-      ...args: OptionalRestArgs<Query>
-    ): Promise<FunctionReturnType<Query>> => {
-      const realRef = resolveRealFunctionRef(query) as Query;
-      return client.query(realRef, ...args);
-    },
-  };
-}
-
-export const useConvex = IS_MOCK_CONVEX
-  ? useMockConvexClient
-  : useLiveConvexClient;
+export const useConvex = IS_MOCK_CONVEX ? useMockConvexClient : useRealConvex;
